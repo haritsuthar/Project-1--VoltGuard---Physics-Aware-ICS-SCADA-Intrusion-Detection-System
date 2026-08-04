@@ -8,223 +8,401 @@
 </head>
 <body>
 
-  <!-- ── HEADER ─────────────────────────────────────────────────────────── -->
-  <header>
-    <div class="header-inner">
-      <div class="logo">
-        <span class="logo-icon">⚡</span>
-        <div>
-          <h1>VoltGuard</h1>
-          <p>Physics-Aware ICS/SCADA Intrusion Detection</p>
-        </div>
+  <!-- ── SIDEBAR ─────────────────────────────────────────────────────────── -->
+  <aside class="sidebar" id="sidebar">
+    <div class="sidebar-logo">
+      <span class="logo-bolt">⚡</span>
+      <span class="logo-text">VoltGuard</span>
+    </div>
+
+    <nav class="sidebar-nav">
+      <a class="nav-item active" data-section="dashboard" onclick="showSection('dashboard',this)">
+        <svg viewBox="0 0 24 24"><path d="M3 3h7v7H3zm11 0h7v7h-7zM3 14h7v7H3zm11 0h7v7h-7z"/></svg>
+        Dashboard
+      </a>
+      <a class="nav-item" data-section="decisions" onclick="showSection('decisions',this)">
+        <svg viewBox="0 0 24 24"><path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/></svg>
+        Decision Log
+      </a>
+      <a class="nav-item" data-section="pipeline" onclick="showSection('pipeline',this)">
+        <svg viewBox="0 0 24 24"><path d="M8 9l3 3-3 3m5 0h3M5 20h14a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
+        Live Pipeline
+      </a>
+      <a class="nav-item" data-section="api" onclick="showSection('api',this)">
+        <svg viewBox="0 0 24 24"><path d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4"/></svg>
+        API Explorer
+      </a>
+    </nav>
+
+    <div class="sidebar-footer">
+      <div class="system-status">
+        <span class="status-dot" id="status-dot"></span>
+        <span id="status-label">Idle</span>
       </div>
-      <div class="header-actions">
-        <span id="status-badge" class="badge badge-idle">Idle</span>
-        <button id="btn-api" class="btn btn-ghost" onclick="toggleApiPanel()">
-          🔌 API
-        </button>
-        <button id="btn-run" class="btn btn-primary" onclick="runPipeline()">
-          ▶ Run Pipeline
-        </button>
+      <div class="sidebar-version">v1.0.0</div>
+    </div>
+  </aside>
+
+  <!-- ── TOP BAR ─────────────────────────────────────────────────────────── -->
+  <div class="topbar">
+    <div class="topbar-left">
+      <button class="sidebar-toggle" onclick="toggleSidebar()" aria-label="Toggle sidebar">
+        <svg viewBox="0 0 24 24" width="20" height="20"><path d="M3 12h18M3 6h18M3 18h18" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+      </button>
+      <div class="breadcrumb">
+        <span id="breadcrumb-text">Dashboard</span>
       </div>
     </div>
-  </header>
-
-  <!-- ── API PANEL ──────────────────────────────────────────────────────── -->
-  <div id="api-panel" class="api-panel" style="display: none;">
-    <div class="api-panel-inner">
-      <div class="api-header">
-        <h2>🔌 API Endpoints & Documentation</h2>
-        <button class="btn btn-ghost" onclick="toggleApiPanel()">✕ Close</button>
+    <div class="topbar-right">
+      <div class="clock" id="topbar-clock">—</div>
+      <div class="badge-wrap">
+        <span id="pipeline-badge" class="pbadge pbadge-idle">
+          <span class="pbadge-dot"></span>Idle
+        </span>
       </div>
-
-      <div class="api-tabs">
-        <button class="api-tab active" onclick="switchApiTab('decisions')">GET /api/decisions</button>
-        <button class="api-tab" onclick="switchApiTab('stats')">GET /api/stats</button>
-        <button class="api-tab" onclick="switchApiTab('stream')">GET /api/stream</button>
-        <button class="api-tab" onclick="switchApiTab('run')">POST /api/run</button>
-        <button class="api-tab" onclick="switchApiTab('docs')">📖 API Docs</button>
-      </div>
-
-      <div class="api-content">
-        <!-- Decisions Tab -->
-        <div id="tab-decisions" class="api-tab-content active">
-          <div class="api-section">
-            <h3>GET /api/decisions</h3>
-            <p>Returns all decision records from the latest pipeline run.</p>
-            <div class="api-actions">
-              <button class="btn btn-primary" onclick="testEndpoint('decisions')">▶ Test</button>
-              <button class="btn btn-ghost" onclick="copyUrl('/api/decisions')">📋 Copy URL</button>
-            </div>
-          </div>
-          <div class="api-response">
-            <div class="response-header">Response:</div>
-            <pre id="response-decisions" class="response-content">Click "Test" to fetch data</pre>
-          </div>
-        </div>
-
-        <!-- Stats Tab -->
-        <div id="tab-stats" class="api-tab-content">
-          <div class="api-section">
-            <h3>GET /api/stats</h3>
-            <p>Returns summary statistics: total, allow, drop counts and percentages.</p>
-            <div class="api-actions">
-              <button class="btn btn-primary" onclick="testEndpoint('stats')">▶ Test</button>
-              <button class="btn btn-ghost" onclick="copyUrl('/api/stats')">📋 Copy URL</button>
-            </div>
-          </div>
-          <div class="api-response">
-            <div class="response-header">Response:</div>
-            <pre id="response-stats" class="response-content">Click "Test" to fetch data</pre>
-          </div>
-        </div>
-
-        <!-- Stream Tab -->
-        <div id="tab-stream" class="api-tab-content">
-          <div class="api-section">
-            <h3>GET /api/stream</h3>
-            <p>Server-Sent Events (SSE) endpoint that streams live pipeline output.</p>
-            <div class="api-actions">
-              <button class="btn btn-primary" onclick="openStream()">▶ Open Stream</button>
-              <button class="btn btn-ghost" onclick="copyUrl('/api/stream')">📋 Copy URL</button>
-            </div>
-          </div>
-          <div class="api-response">
-            <div class="response-header">Stream Output:</div>
-            <pre id="response-stream" class="response-content">Click "Open Stream" to start receiving events</pre>
-          </div>
-        </div>
-
-        <!-- Run Tab -->
-        <div id="tab-run" class="api-tab-content">
-          <div class="api-section">
-            <h3>POST /api/run</h3>
-            <p>Triggers a full pipeline run (generator + interceptor).</p>
-            <div class="api-actions">
-              <button class="btn btn-primary" onclick="testEndpoint('run')">▶ Test</button>
-              <button class="btn btn-ghost" onclick="copyUrl('/api/run')">📋 Copy URL</button>
-            </div>
-          </div>
-          <div class="api-response">
-            <div class="response-header">Response:</div>
-            <pre id="response-run" class="response-content">Click "Test" to trigger pipeline</pre>
-          </div>
-        </div>
-
-        <!-- Docs Tab -->
-        <div id="tab-docs" class="api-tab-content">
-          <div class="api-section">
-            <h3>📖 Interactive API Documentation</h3>
-            <p>FastAPI automatically generates interactive API documentation with Swagger UI.</p>
-            <div class="api-actions">
-              <button class="btn btn-primary" onclick="window.open('/docs', '_blank')">🚀 Open Swagger UI</button>
-              <button class="btn btn-ghost" onclick="window.open('/redoc', '_blank')">📄 Open ReDoc</button>
-            </div>
-          </div>
-          <div class="api-iframe-container">
-            <iframe id="docs-iframe" src="/docs" frameborder="0"></iframe>
-          </div>
-        </div>
-      </div>
+      <button class="btn btn-run" id="btn-run" onclick="runPipeline()">
+        <svg viewBox="0 0 24 24" width="14" height="14"><polygon points="5,3 19,12 5,21"/></svg>
+        Run Pipeline
+      </button>
     </div>
   </div>
 
-  <!-- ── MAIN ───────────────────────────────────────────────────────────── -->
-  <main>
+  <!-- ── MAIN CONTENT ────────────────────────────────────────────────────── -->
+  <main class="content">
 
-    <!-- Stats Row -->
-    <section class="stats-row" id="stats-row">
-      <div class="stat-card">
-        <div class="stat-value" id="stat-total">—</div>
-        <div class="stat-label">Total Commands</div>
-      </div>
-      <div class="stat-card allow">
-        <div class="stat-value" id="stat-allow">—</div>
-        <div class="stat-label">Allowed <span id="stat-allow-pct" class="pct"></span></div>
-      </div>
-      <div class="stat-card drop">
-        <div class="stat-value" id="stat-drop">—</div>
-        <div class="stat-label">Blocked <span id="stat-drop-pct" class="pct"></span></div>
-      </div>
-      <div class="stat-card">
-        <div class="stat-value" id="stat-threshold">12 bar</div>
-        <div class="stat-label">Pressure Threshold</div>
-      </div>
-    </section>
+    <!-- ═══ SECTION: DASHBOARD ════════════════════════════════════════════ -->
+    <section id="section-dashboard" class="page active">
 
-    <!-- Charts Row -->
-    <section class="charts-row">
-      <div class="card chart-card">
-        <h2>Decision Distribution</h2>
-        <div class="donut-wrap">
-          <canvas id="donutChart"></canvas>
-          <div class="donut-center" id="donut-center-text">—</div>
+      <!-- KPI Row -->
+      <div class="kpi-grid">
+        <div class="kpi-card kpi-total">
+          <div class="kpi-icon">
+            <svg viewBox="0 0 24 24"><path d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/></svg>
+          </div>
+          <div class="kpi-body">
+            <div class="kpi-value" id="kpi-total">—</div>
+            <div class="kpi-label">Total Commands</div>
+          </div>
+          <div class="kpi-trend" id="kpi-total-sub">Analysed</div>
+        </div>
+
+        <div class="kpi-card kpi-allow">
+          <div class="kpi-icon">
+            <svg viewBox="0 0 24 24"><path d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+          </div>
+          <div class="kpi-body">
+            <div class="kpi-value" id="kpi-allow">—</div>
+            <div class="kpi-label">Allowed</div>
+          </div>
+          <div class="kpi-trend" id="kpi-allow-pct">—%</div>
+        </div>
+
+        <div class="kpi-card kpi-drop">
+          <div class="kpi-icon">
+            <svg viewBox="0 0 24 24"><path d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+          </div>
+          <div class="kpi-body">
+            <div class="kpi-value" id="kpi-drop">—</div>
+            <div class="kpi-label">Blocked</div>
+          </div>
+          <div class="kpi-trend" id="kpi-drop-pct">—%</div>
+        </div>
+
+        <div class="kpi-card kpi-threshold">
+          <div class="kpi-icon">
+            <svg viewBox="0 0 24 24"><path d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
+          </div>
+          <div class="kpi-body">
+            <div class="kpi-value">12 bar</div>
+            <div class="kpi-label">Pressure Limit</div>
+          </div>
+          <div class="kpi-trend">Flow ≤ 5.0</div>
         </div>
       </div>
 
-      <div class="card chart-card wide">
-        <h2>Pressure by Command Value</h2>
-        <canvas id="barChart"></canvas>
-      </div>
-    </section>
-
-    <!-- Table + Live Log Row -->
-    <section class="bottom-row">
-      <div class="card table-card">
-        <div class="card-header">
-          <h2>Decision Log</h2>
-          <div class="table-controls">
-            <input id="filter-input" type="text" placeholder="Filter…" oninput="filterTable()" />
-            <select id="filter-action" onchange="filterTable()">
-              <option value="">All</option>
-              <option value="ALLOW">ALLOW</option>
-              <option value="DROP">DROP</option>
-            </select>
+      <!-- Charts Row -->
+      <div class="chart-grid">
+        <div class="panel">
+          <div class="panel-head">
+            <span class="panel-title">Decision Distribution</span>
+            <span class="panel-badge" id="donut-label">—</span>
+          </div>
+          <div class="donut-wrap">
+            <canvas id="donutChart"></canvas>
+            <div class="donut-center" id="donut-center">
+              <div class="donut-num" id="donut-total">—</div>
+              <div class="donut-sub">total</div>
+            </div>
+          </div>
+          <div class="donut-legend">
+            <div class="legend-item"><span class="legend-dot allow-dot"></span>ALLOW</div>
+            <div class="legend-item"><span class="legend-dot drop-dot"></span>DROP</div>
           </div>
         </div>
+
+        <div class="panel chart-wide">
+          <div class="panel-head">
+            <span class="panel-title">Pressure & Flow per Command</span>
+            <div class="chart-legend-inline">
+              <span class="cl-item"><span class="cl-bar allow-bar"></span>Safe</span>
+              <span class="cl-item"><span class="cl-bar drop-bar"></span>Blocked</span>
+              <span class="cl-item"><span class="cl-line"></span>Flow Rate</span>
+            </div>
+          </div>
+          <div class="chart-area">
+            <canvas id="barChart"></canvas>
+          </div>
+        </div>
+      </div>
+
+      <!-- Pressure Timeline -->
+      <div class="panel">
+        <div class="panel-head">
+          <span class="panel-title">Pressure Timeline</span>
+          <span class="panel-subtitle">Threshold at 12.0 bar</span>
+        </div>
+        <div class="chart-area chart-area-sm">
+          <canvas id="lineChart"></canvas>
+        </div>
+      </div>
+
+    </section>
+
+    <!-- ═══ SECTION: DECISION LOG ══════════════════════════════════════════ -->
+    <section id="section-decisions" class="page">
+
+      <div class="panel">
+        <div class="panel-head">
+          <span class="panel-title">Decision Log</span>
+          <div class="table-tools">
+            <div class="search-box">
+              <svg viewBox="0 0 24 24" width="14" height="14"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+              <input id="filter-input" type="text" placeholder="Search records…" oninput="filterTable()" />
+            </div>
+            <select id="filter-action" onchange="filterTable()">
+              <option value="">All Actions</option>
+              <option value="ALLOW">✅ ALLOW</option>
+              <option value="DROP">🚫 DROP</option>
+            </select>
+            <button class="btn btn-ghost btn-sm" onclick="exportCSV()">
+              <svg viewBox="0 0 24 24" width="13" height="13"><path d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
+              Export CSV
+            </button>
+          </div>
+        </div>
+
+        <div class="table-meta" id="table-meta">Showing all records</div>
+
         <div class="table-wrap">
-          <table id="decisions-table">
+          <table class="data-table">
             <thead>
               <tr>
-                <th>#</th>
+                <th class="col-num">#</th>
                 <th>Device</th>
                 <th>Register</th>
-                <th>Value</th>
-                <th>Pressure (bar)</th>
+                <th>Cmd Value</th>
+                <th>Pressure</th>
                 <th>Flow</th>
                 <th>State</th>
-                <th>Action</th>
+                <th>Decision</th>
                 <th>Reason</th>
               </tr>
             </thead>
             <tbody id="table-body">
-              <tr><td colspan="9" class="empty-msg">No data yet — click ▶ Run Pipeline</td></tr>
+              <tr><td colspan="9" class="empty-state">
+                <div class="empty-icon">📋</div>
+                <div>No data yet — click <strong>Run Pipeline</strong> to get started</div>
+              </td></tr>
             </tbody>
           </table>
         </div>
       </div>
+
     </section>
 
-    <!-- Live Terminal -->
-    <section class="terminal-section">
-      <div class="card">
-        <div class="card-header">
-          <h2>Live Pipeline Output</h2>
-          <button class="btn btn-ghost" onclick="clearTerminal()">Clear</button>
+    <!-- ═══ SECTION: LIVE PIPELINE ═════════════════════════════════════════ -->
+    <section id="section-pipeline" class="page">
+
+      <div class="pipeline-layout">
+        <div class="panel flow-panel">
+          <div class="panel-head">
+            <span class="panel-title">Pipeline Stages</span>
+          </div>
+          <div class="flow-steps">
+            <div class="flow-step" id="flow-gen">
+              <div class="flow-step-icon">📄</div>
+              <div class="flow-step-body">
+                <div class="flow-step-name">Generator</div>
+                <div class="flow-step-desc">Synthesises Modbus commands</div>
+              </div>
+              <div class="flow-step-status" id="flow-gen-status">waiting</div>
+            </div>
+            <div class="flow-arrow">↓</div>
+            <div class="flow-step" id="flow-phys">
+              <div class="flow-step-icon">⚙️</div>
+              <div class="flow-step-body">
+                <div class="flow-step-name">Physics Engine</div>
+                <div class="flow-step-desc">Simulates pipeline pressure & flow</div>
+              </div>
+              <div class="flow-step-status" id="flow-phys-status">waiting</div>
+            </div>
+            <div class="flow-arrow">↓</div>
+            <div class="flow-step" id="flow-dec">
+              <div class="flow-step-icon">🧠</div>
+              <div class="flow-step-body">
+                <div class="flow-step-name">Decision Engine</div>
+                <div class="flow-step-desc">Applies safety thresholds</div>
+              </div>
+              <div class="flow-step-status" id="flow-dec-status">waiting</div>
+            </div>
+            <div class="flow-arrow">↓</div>
+            <div class="flow-step" id="flow-out">
+              <div class="flow-step-icon">💾</div>
+              <div class="flow-step-body">
+                <div class="flow-step-name">Output</div>
+                <div class="flow-step-desc">Writes decisions.jsonl</div>
+              </div>
+              <div class="flow-step-status" id="flow-out-status">waiting</div>
+            </div>
+          </div>
+
+          <div class="pipeline-actions">
+            <button class="btn btn-run btn-full" id="btn-run-pipeline" onclick="runPipeline()">
+              <svg viewBox="0 0 24 24" width="15" height="15"><polygon points="5,3 19,12 5,21"/></svg>
+              Run Pipeline
+            </button>
+          </div>
         </div>
-        <div id="terminal" class="terminal">
-          <div class="term-line info">Waiting for pipeline run...</div>
+
+        <div class="panel terminal-panel">
+          <div class="panel-head">
+            <span class="panel-title">Live Output</span>
+            <button class="btn btn-ghost btn-sm" onclick="clearTerminal()">Clear</button>
+          </div>
+          <div id="terminal" class="terminal">
+            <span class="term-line info">Ready — click Run Pipeline to start...</span>
+          </div>
         </div>
       </div>
+
+    </section>
+
+    <!-- ═══ SECTION: API EXPLORER ══════════════════════════════════════════ -->
+    <section id="section-api" class="page">
+
+      <div class="api-layout">
+        <div class="panel api-sidebar-panel">
+          <div class="panel-head"><span class="panel-title">Endpoints</span></div>
+          <div class="endpoint-list">
+            <div class="endpoint-item active" onclick="selectEndpoint(this,'decisions')" data-ep="decisions">
+              <span class="method-badge get">GET</span>
+              <span class="ep-path">/api/decisions</span>
+            </div>
+            <div class="endpoint-item" onclick="selectEndpoint(this,'stats')" data-ep="stats">
+              <span class="method-badge get">GET</span>
+              <span class="ep-path">/api/stats</span>
+            </div>
+            <div class="endpoint-item" onclick="selectEndpoint(this,'stream')" data-ep="stream">
+              <span class="method-badge get">GET</span>
+              <span class="ep-path">/api/stream</span>
+            </div>
+            <div class="endpoint-item" onclick="selectEndpoint(this,'run')" data-ep="run">
+              <span class="method-badge post">POST</span>
+              <span class="ep-path">/api/run</span>
+            </div>
+            <div class="endpoint-item" onclick="selectEndpoint(this,'docs')" data-ep="docs">
+              <span class="method-badge doc">DOC</span>
+              <span class="ep-path">/docs</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="panel api-detail-panel">
+          <!-- decisions -->
+          <div class="ep-detail active" id="ep-decisions">
+            <div class="ep-head">
+              <span class="method-badge get lg">GET</span>
+              <code class="ep-url">/api/decisions</code>
+              <button class="btn btn-ghost btn-sm" onclick="copyUrl('/api/decisions')">Copy URL</button>
+            </div>
+            <p class="ep-desc">Returns all decision records from the latest pipeline run as a JSON array.</p>
+            <button class="btn btn-run btn-sm" onclick="testEndpoint('decisions')">▶ Send Request</button>
+            <div class="response-block">
+              <div class="response-label">Response</div>
+              <pre id="response-decisions" class="response-pre">// click Send Request</pre>
+            </div>
+          </div>
+
+          <!-- stats -->
+          <div class="ep-detail" id="ep-stats">
+            <div class="ep-head">
+              <span class="method-badge get lg">GET</span>
+              <code class="ep-url">/api/stats</code>
+              <button class="btn btn-ghost btn-sm" onclick="copyUrl('/api/stats')">Copy URL</button>
+            </div>
+            <p class="ep-desc">Returns summary statistics — total commands, ALLOW/DROP counts and percentages.</p>
+            <button class="btn btn-run btn-sm" onclick="testEndpoint('stats')">▶ Send Request</button>
+            <div class="response-block">
+              <div class="response-label">Response</div>
+              <pre id="response-stats" class="response-pre">// click Send Request</pre>
+            </div>
+          </div>
+
+          <!-- stream -->
+          <div class="ep-detail" id="ep-stream">
+            <div class="ep-head">
+              <span class="method-badge get lg">GET</span>
+              <code class="ep-url">/api/stream</code>
+              <button class="btn btn-ghost btn-sm" onclick="copyUrl('/api/stream')">Copy URL</button>
+            </div>
+            <p class="ep-desc">Server-Sent Events (SSE) — streams live pipeline output. Each event is a JSON object with <code>msg</code> and <code>type</code> fields.</p>
+            <button class="btn btn-run btn-sm" onclick="openStream()">▶ Open Stream</button>
+            <div class="response-block">
+              <div class="response-label">Stream Output</div>
+              <pre id="response-stream" class="response-pre">// click Open Stream</pre>
+            </div>
+          </div>
+
+          <!-- run -->
+          <div class="ep-detail" id="ep-run">
+            <div class="ep-head">
+              <span class="method-badge post lg">POST</span>
+              <code class="ep-url">/api/run</code>
+              <button class="btn btn-ghost btn-sm" onclick="copyUrl('/api/run')">Copy URL</button>
+            </div>
+            <p class="ep-desc">Triggers a synchronous full pipeline run (generator → interceptor). Returns when complete.</p>
+            <button class="btn btn-run btn-sm" onclick="testEndpoint('run')">▶ Send Request</button>
+            <div class="response-block">
+              <div class="response-label">Response</div>
+              <pre id="response-run" class="response-pre">// click Send Request</pre>
+            </div>
+          </div>
+
+          <!-- docs -->
+          <div class="ep-detail" id="ep-docs">
+            <div class="ep-head">
+              <span class="method-badge doc lg">DOC</span>
+              <code class="ep-url">/docs &nbsp;·&nbsp; /redoc</code>
+            </div>
+            <p class="ep-desc">Auto-generated interactive API documentation powered by FastAPI. Swagger UI lets you test every endpoint directly.</p>
+            <div class="doc-btns">
+              <button class="btn btn-run btn-sm" onclick="window.open('/docs','_blank')">Open Swagger UI ↗</button>
+              <button class="btn btn-ghost btn-sm" onclick="window.open('/redoc','_blank')">Open ReDoc ↗</button>
+            </div>
+            <div class="docs-iframe-wrap">
+              <iframe src="/docs" frameborder="0" title="Swagger UI"></iframe>
+            </div>
+          </div>
+
+        </div>
+      </div>
+
     </section>
 
   </main>
 
-  <!-- ── FOOTER ──────────────────────────────────────────────────────────── -->
-  <footer>
-    <span>VoltGuard &copy; 2025 &nbsp;|&nbsp; Physics-Aware ICS/SCADA IDS</span>
-    <span id="footer-time"></span>
-  </footer>
+  <!-- ── TOAST ────────────────────────────────────────────────────────────── -->
+  <div id="toast" class="toast" role="alert"></div>
 
   <script src="/static/chart.umd.min.js"></script>
   <script src="/static/app.js"></script>
