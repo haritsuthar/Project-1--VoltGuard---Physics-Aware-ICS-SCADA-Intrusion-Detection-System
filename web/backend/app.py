@@ -10,8 +10,10 @@ Endpoints:
 
 import asyncio
 import json
+import queue
 import subprocess
 import sys
+import threading
 from pathlib import Path
 
 from fastapi import FastAPI, Request
@@ -105,53 +107,94 @@ async def run_pipeline():
 @app.get("/api/stream")
 async def stream_pipeline(request: Request):
     """
-    SSE stream of the pipeline run.
-    Sends `retry: 0` so the browser does NOT auto-reconnect.
-    Sends a final `event: done` so the client can cleanly close.
+    SSE stream of the full pipeline run.
+    Uses a thread + queue to safely stream subprocess stdout on Windows,
+    where asyncio.create_subprocess_exec is unreliable with SelectorEventLoop.
+    Sends retry:0 so the browser does NOT auto-reconnect.
     """
 
+    # Queue carries either a dict payload or the sentinel None (stream done)
+    q: queue.Queue = queue.Queue()
+
+    def _run_pipeline():
+        """Runs entirely in a background thread — no async code here."""
+
+        def push(msg: str, typ: str = "info"):
+            q.put({"msg": msg, "type": typ})
+
+        # ── Step 1: generator ────────────────────────────────────────────
+        push("[1/2] Generating Modbus commands...", "info")
+        try:
+            subprocess.run(
+                [sys.executable, str(GENERATOR)],
+                timeout=30,
+                check=True,
+                capture_output=True,
+            )
+            push("[1/2] sample_log.jsonl created.", "info")
+        except Exception as exc:
+            push(f"Generator error: {exc}", "error")
+            push("Pipeline failed.", "done")
+            q.put(None)  # sentinel
+            return
+
+        # ── Step 2: interceptor — stream stdout line-by-line ─────────────
+        push("[2/2] Running detection pipeline...", "info")
+        try:
+            proc = subprocess.Popen(
+                [sys.executable, str(INTERCEPTOR)],
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
+                text=True,
+                encoding="utf-8",
+                errors="replace",
+                bufsize=1,          # line-buffered
+                env={**__import__("os").environ, "PYTHONIOENCODING": "utf-8"},
+            )
+            for line in proc.stdout:
+                line = line.rstrip()
+                if not line:
+                    continue
+                if "DROP" in line:
+                    typ = "drop"
+                elif "ALLOW" in line:
+                    typ = "allow"
+                else:
+                    typ = "info"
+                push(line, typ)
+            proc.wait()
+        except Exception as exc:
+            push(f"Interceptor error: {exc}", "error")
+
+        push("Pipeline complete!", "done")
+        q.put(None)  # sentinel — tells generator() to stop
+
     async def generate():
-        # Disable browser auto-reconnect completely
+        # Disable browser auto-reconnect
         yield "retry: 0\n"
         yield _sse({"msg": "▶ Starting pipeline...", "type": "info"})
 
-        # ── Step 1: generator ────────────────────────────────────────────
-        yield _sse({"msg": "[1/2] Generating Modbus commands...", "type": "info"})
-        try:
-            loop = asyncio.get_event_loop()
-            await loop.run_in_executor(
-                None,
-                lambda: subprocess.run([sys.executable, str(GENERATOR)], timeout=30, check=True)
-            )
-            yield _sse({"msg": "[1/2] sample_log.jsonl created.", "type": "info"})
-        except Exception as exc:
-            yield _sse({"msg": f"Generator error: {exc}", "type": "error"})
-            yield _sse({"msg": "Pipeline failed.", "type": "done"})
-            return
+        # Kick off the blocking pipeline in a thread-pool thread
+        loop = asyncio.get_event_loop()
+        thread_future = loop.run_in_executor(None, _run_pipeline)
 
-        # ── Step 2: interceptor (stream stdout) ──────────────────────────
-        yield _sse({"msg": "[2/2] Running detection pipeline...", "type": "info"})
-        try:
-            proc = await asyncio.create_subprocess_exec(
-                sys.executable, str(INTERCEPTOR),
-                stdout=asyncio.subprocess.PIPE,
-                stderr=asyncio.subprocess.STDOUT,
-            )
-            async for raw in proc.stdout:
-                line = raw.decode("utf-8", errors="replace").rstrip()
-                if not line:
-                    continue
-                if await request.is_disconnected():
-                    proc.kill()
-                    return
-                msg_type = "drop" if "DROP" in line else "allow" if "ALLOW" in line else "info"
-                yield _sse({"msg": line, "type": msg_type})
+        while True:
+            # Check client disconnect
+            if await request.is_disconnected():
+                break
 
-            await proc.wait()
-        except Exception as exc:
-            yield _sse({"msg": f"Interceptor error: {exc}", "type": "error"})
-
-        yield _sse({"msg": "Pipeline complete!", "type": "done"})
+            # Drain everything currently in the queue without blocking the loop
+            try:
+                while True:
+                    item = q.get_nowait()
+                    if item is None:
+                        # Sentinel — pipeline finished
+                        await thread_future   # ensure thread is done
+                        return
+                    yield _sse(item)
+            except queue.Empty:
+                # Nothing ready yet — yield control briefly so other coroutines run
+                await asyncio.sleep(0.05)
 
     return StreamingResponse(
         generate(),

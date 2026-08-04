@@ -1,266 +1,367 @@
 ================================================================================
-  VoltGuard — All Run Commands
-  Physics-Aware ICS/SCADA Intrusion Detection System
-================================================================================
-
-WHAT THIS PROJECT DOES:
------------------------
-VoltGuard simulates a Modbus-based industrial control system and checks every
-command against a physics model of a pipeline. If a command would cause the
-pipeline to exceed safe pressure (>12 bar) or flow (>5 units), it is BLOCKED
-(DROP). Safe commands are ALLOWED. Results are written to a JSONL file and can
-be viewed in a Qt6 dashboard.
-
-PROJECT STRUCTURE
------------------
-VoltGuard/
-  packet_interceptor/
-    generator.py        <- Step 1: generates 20 fake Modbus commands
-    interceptor.py      <- Step 2: runs the full pipeline (physics + decision)
-    sample_log.jsonl    <- auto-created by generator.py
-  physics_engine/
-    simulate_pipeline.py  <- physics simulation (pure Python, no extra install)
-    pipeline.mo           <- optional OpenModelica model
-  decision_engine/
-    src/main.rs           <- Rust decision engine (optional, see below)
-    Cargo.toml
-  dashboard/
-    main.cpp              <- Qt6 C++ dashboard (optional, see below)
-    mainwindow.cpp / .h
-    CMakeLists.txt
-  output/
-    decisions.jsonl       <- auto-created by interceptor.py
-  shared/
-    models.py             <- shared Python dataclasses
-  web/
-    backend/
-      app.py
-      requirements.txt
-    frontend/
-      index.html
-      static/
-        app.js
-        chart.umd.min.json
-        style.css
-      
-  README.md
-  RUN_COMMANDS.txt          <- this file
-
+         VoltGuard — Physics-Aware ICS/SCADA Intrusion Detection System
+                          ALL RUN COMMANDS  (Quick Reference)
+                          Last updated: August 2026
 ================================================================================
 
   Project Root:
   d:\PROJECTS\Project-1--VoltGuard---Physics-Aware-ICS-SCADA-Intrusion-Detection-System\
 
-================================================================================
-  STEP 1 — Generate Modbus Commands  (optional, auto-runs via interceptor)
-================================================================================
-
-  cd d:\PROJECTS\Project-1--VoltGuard---Physics-Aware-ICS-SCADA-Intrusion-Detection-System\packet_interceptor
-
-  python generator.py
-
-  Output:  packet_interceptor\sample_log.jsonl
-  Creates 20 random Modbus-style command records.
-
+  Python  : 3.13.3   (required)
+  FastAPI : 0.115.5  (required)
+  Uvicorn : 0.32.1   (required)
+  Rust    : optional — Python fallback used automatically if not installed
+  Qt6     : optional — web dashboard is the primary UI
 
 ================================================================================
-  STEP 2 — Run the Detection Pipeline  (physics sim + decision engine)
+  WHAT THIS PROJECT DOES
 ================================================================================
 
-  cd d:\PROJECTS\Project-1--VoltGuard---Physics-Aware-ICS-SCADA-Intrusion-Detection-System\packet_interceptor
+  VoltGuard validates Modbus industrial control commands against a physics
+  simulation of a pipeline. Each command is checked:
 
-  python interceptor.py
+    cmd value  ->  physics engine  ->  pressure & flow  ->  decision engine
+                                                                   |
+                                                 pressure > 12 bar  ->  DROP
+                                                 flow     > 5.0     ->  DROP
+                                                 both within limits  ->  ALLOW
 
-  Output:  output\decisions.jsonl
-  - Runs generator.py automatically if sample_log.jsonl is missing
-  - Calls physics engine for each command
-  - Applies ALLOW / DROP thresholds
-  - Prints colour-coded results to console
-  - Writes all 20 decision records to output\decisions.jsonl
-
-
-================================================================================
-  STEP 3 — Start the Web App  (Frontend + Backend)
-================================================================================
-
-  cd d:\PROJECTS\Project-1--VoltGuard---Physics-Aware-ICS-SCADA-Intrusion-Detection-System\web\backend
-
-  python -m uvicorn app:app --host 0.0.0.0 --port 8000 --reload
-
-  Then open browser at:   http://localhost:8000
-
-  Features available in the web app:
-    - Stats bar        : total / allowed / blocked counts
-    - Donut chart      : ALLOW vs DROP distribution
-    - Bar + line chart : pressure per command, flow rate overlay
-    - Decision table   : all records, filterable by action or keyword
-    - Live terminal    : click "Run Pipeline" button to re-run and stream output
-
+  Results are streamed live to a professional web dashboard with:
+    - KPI cards, donut chart, bar+line chart, pressure timeline
+    - Filterable decision log table with CSV export
+    - Live pipeline terminal with stage tracker
+    - API explorer with embedded Swagger UI
 
 ================================================================================
-  QUICK START  (run all steps from scratch in order)
+  QUICK START  (minimum 2 commands)
 ================================================================================
 
-  1.  cd d:\PROJECTS\Project-1--VoltGuard---Physics-Aware-ICS-SCADA-Intrusion-Detection-System\packet_interceptor
-      python generator.py
-
-  2.  python interceptor.py
-
-  3.  cd d:\PROJECTS\Project-1--VoltGuard---Physics-Aware-ICS-SCADA-Intrusion-Detection-System\web\backend
-      python -m uvicorn app:app --host 0.0.0.0 --port 8000 --reload
-
-  4.  Open browser:  http://localhost:8000
+  TERMINAL 1 — Run the detection pipeline (then keep open or close):
+  -------------------------------------------------------------------
+    cd d:\PROJECTS\Project-1--VoltGuard---Physics-Aware-ICS-SCADA-Intrusion-Detection-System\packet_interceptor
+    python interceptor.py
 
 
-================================================================================
-  OPTIONAL — Rebuild Rust Decision Engine  (requires Rust installed)
-================================================================================
+  TERMINAL 2 — Start the web server (keep this open):
+  -----------------------------------------------------
+    cd d:\PROJECTS\Project-1--VoltGuard---Physics-Aware-ICS-SCADA-Intrusion-Detection-System\web\backend
+    python -m uvicorn app:app --host 0.0.0.0 --port 8000 --reload
 
-  Install Rust:   https://rustup.rs
 
-  cd d:\PROJECTS\Project-1--VoltGuard---Physics-Aware-ICS-SCADA-Intrusion-Detection-System\decision_engine
+  BROWSER — Open the dashboard:
+  ------------------------------
+    http://localhost:8000
 
-  cargo build --release
-
-  Binary output:  decision_engine\target\release\decision_engine.exe
-  The interceptor detects this binary automatically and uses it instead of
-  the Python fallback.
-
+  NOTE: You can also skip Terminal 1 entirely and click the
+        "Run Pipeline" button inside the web dashboard instead.
 
 ================================================================================
-  OPTIONAL — Build Qt6 Dashboard  (requires Qt6 + CMake installed)
+  STEP-BY-STEP (detailed)
 ================================================================================
 
-  Install Qt6:    https://www.qt.io/download
-  Install CMake:  https://cmake.org/download
+  STEP 1 — Install dependencies  (first time only)
+  --------------------------------------------------
+    pip install fastapi==0.115.5 uvicorn==0.32.1
 
-  cd d:\PROJECTS\Project-1--VoltGuard---Physics-Aware-ICS-SCADA-Intrusion-Detection-System\dashboard
+    Verify:
+      pip show fastapi uvicorn
 
-  cmake -B build -S .
-  cmake --build build --config Release
 
-  Run:  build\Release\VoltGuardDashboard.exe
+  STEP 2 — Generate Modbus Commands  (optional)
+  -----------------------------------------------
+    SKIP THIS — interceptor.py auto-runs generator.py if the file is missing.
+    Run manually only if you want to regenerate fresh commands:
 
-  NOTE: Run interceptor.py first so output\decisions.jsonl exists.
+    cd d:\PROJECTS\Project-1--VoltGuard---Physics-Aware-ICS-SCADA-Intrusion-Detection-System\packet_interceptor
+    python generator.py
 
+    Output  : packet_interceptor\sample_log.jsonl
+    Creates : 20 random Modbus FC16 register-write commands
+    Values  : randomly chosen from [5, 12, 25, 40, 55, 80]
+
+
+  STEP 3 — Run the Detection Pipeline
+  -------------------------------------
+    cd d:\PROJECTS\Project-1--VoltGuard---Physics-Aware-ICS-SCADA-Intrusion-Detection-System\packet_interceptor
+    python interceptor.py
+
+    What it does:
+      - Auto-generates sample_log.jsonl if missing or empty
+      - Calls physics_engine\simulate_pipeline.py for each command
+      - Applies ALLOW / DROP thresholds (Python fallback or Rust binary)
+      - Prints results to console
+      - Writes all 20 decision records to output\decisions.jsonl
+
+    Expected console output:
+      [interceptor] Reading   ...\sample_log.jsonl
+      [interceptor] Writing results to ...\output\decisions.jsonl
+      [interceptor] Rust decision engine: not found -- using Python fallback
+
+      [ALLOW] | value=  5.0 | pressure= 7.460 bar | flow=1.075 | state=Safe
+      [ALLOW] | value= 25.0 | pressure=10.100 bar | flow=1.375 | state=Safe
+      [DROP]  | value= 40.0 | pressure=12.080 bar | flow=1.600 | state=Catastrophic Failure
+      [DROP]  | value= 80.0 | pressure=17.360 bar | flow=2.200 | state=Catastrophic Failure
+      ...
+      [interceptor] Done -- ...\output\decisions.jsonl
+
+
+  STEP 4 — Start the Web Server
+  --------------------------------
+    cd d:\PROJECTS\Project-1--VoltGuard---Physics-Aware-ICS-SCADA-Intrusion-Detection-System\web\backend
+    python -m uvicorn app:app --host 0.0.0.0 --port 8000 --reload
+
+    Keep this terminal open while using the dashboard.
+
+    Expected output:
+      INFO:  Uvicorn running on http://0.0.0.0:8000 (Press CTRL+C to quit)
+      INFO:  Application startup complete.
+
+
+  STEP 5 — Open the Dashboard
+  -----------------------------
+    Open browser:  http://localhost:8000
+
+    Sidebar navigation:
+      Dashboard     KPI cards, donut chart, bar+line chart, pressure timeline
+      Decision Log  Full table, search/action filter, CSV export
+      Live Pipeline Stage tracker, live terminal, Run Pipeline button
+      API Explorer  Test all endpoints, embedded Swagger UI
 
 ================================================================================
-  API ENDPOINTS  (once web server is running)
+  API ENDPOINTS  (web server must be running on port 8000)
 ================================================================================
 
-  GET  http://localhost:8000/              - Web dashboard (frontend)
-  GET  http://localhost:8000/api/decisions - All decision records (JSON)
-  GET  http://localhost:8000/api/stats     - Summary stats (JSON)
-  POST http://localhost:8000/api/run       - Run pipeline via API
-  GET  http://localhost:8000/api/stream    - Live SSE stream of pipeline output
-  GET  http://localhost:8000/docs          - Auto-generated API docs (Swagger UI)
+  Method  URL                                Description
+  ------- ---------------------------------- -----------------------------------
+  GET     http://localhost:8000/             Web dashboard (SPA frontend)
+  GET     http://localhost:8000/api/stats    total, allow, drop, percentages
+  GET     http://localhost:8000/api/decisions All 20 decision records (JSON)
+  POST    http://localhost:8000/api/run      Trigger full pipeline run via API
+  GET     http://localhost:8000/api/stream   SSE live stream of pipeline output
+  GET     http://localhost:8000/docs         Swagger UI — interactive API docs
+  GET     http://localhost:8000/redoc        ReDoc API documentation
 
+  Quick browser tests (copy-paste these URLs):
+    http://localhost:8000/api/stats
+    http://localhost:8000/api/decisions
+    http://localhost:8000/docs
 
 ================================================================================
-  PHYSICS THRESHOLDS
+  OPTIONAL — Build Rust Decision Engine
 ================================================================================
 
-  Pressure  > 12.0 bar  →  DROP  (Catastrophic Failure)
-  Flow rate >  5.0      →  DROP  (Catastrophic Failure)
-  Both within limits    →  ALLOW (Safe)
+  The pipeline works fully without Rust. Python fallback has identical logic.
+  Build Rust only if you want the native binary for performance.
 
-  Physics formula (Python fallback):
-    pressure = 6.0 + 0.12 * cmd_value + 0.8 * (1.0 + 0.015 * cmd_value)
-    flow     = 1.0 + 0.015 * cmd_value
+  1. Install Rust:
+       https://rustup.rs  (run installer, restart terminal)
 
+  2. Build:
+       cd d:\PROJECTS\Project-1--VoltGuard---Physics-Aware-ICS-SCADA-Intrusion-Detection-System\decision_engine
+       cargo build --release
+
+  3. Binary produced:
+       decision_engine\target\release\decision_engine.exe
+
+  The interceptor auto-detects this binary on next run.
+
+================================================================================
+  OPTIONAL — Build Qt6 Desktop Dashboard
+================================================================================
+
+  The web dashboard at http://localhost:8000 is the primary UI.
+  The Qt6 C++ desktop app is a static optional viewer.
+
+  Requirements:
+    Qt6 (Widgets):  https://www.qt.io/download
+    CMake 3.16+:    https://cmake.org/download
+    C++17 compiler: Visual Studio 2022 or MinGW
+
+  Build:
+    cd d:\PROJECTS\Project-1--VoltGuard---Physics-Aware-ICS-SCADA-Intrusion-Detection-System\dashboard
+    cmake -B build -S .
+    cmake --build build --config Release
+
+  Run:
+    build\Release\VoltGuardDashboard.exe
+
+  NOTE: Reads output\decisions.jsonl at startup — static, no live reload.
+  Run interceptor.py first so the file exists.
 
 ================================================================================
   FILE STRUCTURE
 ================================================================================
 
   packet_interceptor\
-    generator.py              <- generates sample_log.jsonl
-    interceptor.py            <- main pipeline orchestrator
-    sample_log.jsonl          <- auto-created (20 Modbus commands)
+    generator.py          Generates 20 synthetic Modbus commands
+    interceptor.py        Main pipeline orchestrator — run this
+    sample_log.jsonl      Auto-created — 20 raw command records
+    requirements.txt      scapy (listed; stdlib used in practice)
 
   physics_engine\
-    simulate_pipeline.py      <- physics simulation (pure Python)
-    pipeline.mo               <- optional OpenModelica model
+    simulate_pipeline.py  Physics sim — pure Python fallback + OMPython
+    pipeline.mo           Optional Modelica high-fidelity model
+    requirements.txt      OMPython (optional)
 
   decision_engine\
-    src\main.rs               <- Rust decision engine (optional)
-    Cargo.toml
-
-  output\
-    decisions.jsonl           <- pipeline results (20 decision records)
+    src\main.rs           Rust decision engine (stdin JSON -> stdout JSON)
+    Cargo.toml            Dependencies: serde, serde_json
 
   web\
     backend\
-      app.py                  <- FastAPI web server
-      requirements.txt        <- fastapi, uvicorn
+      app.py              FastAPI server — REST API + SSE streaming
+      requirements.txt    fastapi==0.115.5, uvicorn==0.32.1
     frontend\
-      index.html              <- dashboard UI
+      index.html          Single-page dashboard (4 sidebar sections)
       static\
-        style.css             <- dark theme styles
-        app.js                <- charts, table, live terminal
-        chart.umd.min.js      <- Chart.js library (local copy)
+        style.css         Dark GitHub-style theme
+        app.js            Charts, table, pipeline, API explorer
+        chart.umd.min.js  Chart.js v4 local copy (no CDN needed)
 
-  dashboard\                  <- Qt6 C++ desktop app (optional)
+  dashboard\
+    main.cpp              Qt6 app entry point
+    mainwindow.h          MainWindow class declaration
+    mainwindow.cpp        Loads decisions.jsonl into table + log
+    CMakeLists.txt        Qt6 Widgets CMake build config
+
   shared\
-    models.py                 <- Python dataclasses (Command, SimulationResult)
+    models.py             Dataclasses: Command, SimulationResult
+    __init__.py           Exports Command, SimulationResult
 
-  README.md                   <- project documentation
-  HOW_TO_RUN.txt              <- detailed run instructions
-  RUN_COMMANDS.txt            <- this file (quick reference)
+  output\
+    decisions.jsonl       Full decision records — auto-created at runtime
 
-
-================================================================================
-  REQUIREMENTS
-================================================================================
-
-  Required:
-    Python 3.8+               https://www.python.org/downloads/
-    fastapi==0.115.5          pip install fastapi==0.115.5
-    uvicorn==0.32.1           pip install uvicorn==0.32.1
-
-  Optional:
-    Rust + Cargo              https://rustup.rs
-    Qt6 + CMake               https://www.qt.io/download
-    OMPython (OpenModelica)   pip install OMPython
+  README.md                    Full project documentation
+  RUN_COMMANDS.txt             This file
+  CHATGPT_PROJECT_CONTEXT.txt  Full project context for AI assistants
 
 ================================================================================
-Sections included:
+  PHYSICS THRESHOLDS
 ================================================================================
-Step 1 — Generate Modbus commands
-Step 2 — Run the detection pipeline
-Step 3 — Start the web app
-Quick Start (all steps in one place)
-Optional — Build Rust decision engine
-Optional — Build Qt6 desktop dashboard
-API endpoints (with Swagger UI link at /docs)
-Physics thresholds reference
-Full file structure
-Requirements with install links
+
+  Parameter        Limit          Action if Exceeded
+  ---------------- -------------- ----------------------------
+  pressure_bar     > 12.0 bar     DROP  (Catastrophic Failure)
+  flow_rate        > 5.0          DROP  (Catastrophic Failure)
+  Both within      --             ALLOW (Safe)
+
+  Python formula (fallback):
+    pressure = 6.0 + 0.12 * cmd + 0.8 * (1.0 + 0.015 * cmd)
+    flow     = 1.0 + 0.015 * cmd
+    where cmd = Modbus register value
+
+  Cmd value lookup table:
+    cmd =  5  -> pressure= 7.460 bar, flow=1.075  -> ALLOW
+    cmd = 12  -> pressure= 8.384 bar, flow=1.180  -> ALLOW
+    cmd = 25  -> pressure=10.100 bar, flow=1.375  -> ALLOW
+    cmd = 40  -> pressure=12.080 bar, flow=1.600  -> DROP
+    cmd = 55  -> pressure=14.060 bar, flow=1.825  -> DROP
+    cmd = 80  -> pressure=17.360 bar, flow=2.200  -> DROP
 
 ================================================================================
-What Dashboard Shows:
+  DASHBOARD — ALL FEATURES
 ================================================================================
-- Stats bar — total commands, allowed count, blocked count with percentages
-- Donut chart — ALLOW vs DROP distribution (Chart.js)
-- Bar + line chart — pressure per command (bars coloured green/red by decision) with flow rate overlay
-- Decision table — all records with filter by text or action, colour-coded rows
-- Live terminal — real-time streaming output when you click ▶ Run Pipeline
+
+  Section: Dashboard (default)
+    - 4 KPI cards: Total Commands | Allowed | Blocked | Pressure Limit (12 bar)
+    - Donut chart: ALLOW vs DROP distribution with percentages
+    - Bar + line chart: pressure per command (green=safe/red=blocked) + flow rate
+    - Pressure timeline: line chart with red dashed threshold line at 12 bar
+
+  Section: Decision Log
+    - Full table with columns: # | Device | Register | Cmd Value | Pressure |
+                                Flow | State | Decision (badge) | Reason
+    - Live text search (searches all fields)
+    - Action dropdown filter: All / ALLOW / DROP
+    - Export CSV button (downloads voltguard_decisions.csv)
+
+  Section: Live Pipeline
+    - Pipeline stage tracker: Generator -> Physics Engine -> Decision Engine -> Output
+    - Per-stage status indicator: waiting / running / done / error
+    - Live terminal: real-time streaming output from the pipeline via SSE
+    - Run Pipeline button: re-runs entire pipeline from scratch
+    - Clear button: clears terminal output
+
+  Section: API Explorer
+    - Endpoint list panel: GET /api/decisions, /api/stats, /api/stream,
+                            POST /api/run, DOC /docs
+    - Send Request button: tests each endpoint live
+    - Response viewer: formatted JSON output
+    - Copy URL button: copies endpoint URL to clipboard
+    - Embedded Swagger UI: iframe with /docs, open-in-tab buttons
+
+  Header (always visible):
+    - Pipeline status badge: Idle / Running / Done / Error
+    - Run Pipeline button: triggers pipeline from any section
+    - Live clock
+
 ================================================================================
-TROUBLESHOOTING
+  BUGS FIXED (history)
+================================================================================
+
+  1. "Interceptor error:" with no message in live terminal
+     Root cause: asyncio.create_subprocess_exec fails on Windows with
+     SelectorEventLoop (used by uvicorn).
+     Fix: Replaced with subprocess.Popen in a thread + queue.Queue to pass
+     output back to the async SSE generator.
+
+  2. UnicodeEncodeError crashing interceptor.py
+     Root cause: Emoji characters (green/red circles) in print() cannot be
+     encoded by Windows cp1252 codepage when subprocess stdout is captured.
+     Fix: Replaced emoji with plain ASCII [ALLOW] / [DROP] in interceptor.py.
+     Also set PYTHONIOENCODING=utf-8 in the subprocess environment.
+
+  3. "Too many requests" — SSE auto-reconnect loop
+     Root cause: Browser EventSource reconnects automatically when stream ends,
+     causing infinite pipeline re-runs.
+     Fix: Server sends "retry: 0" as the first SSE frame to disable reconnect.
+     Client EventSource is explicitly closed on type=="done".
+
+  4. simulate_pipeline.py dead Modelica branch
+     Root cause: Function always returned fallback result even when Modelica
+     simulation succeeded, discarding the real result.
+     Fix: Now returns Modelica result when pressure_bar and flow_rate are
+     present in the response dict.
+
+  5. interceptor.py Python fallback missing numeric thresholds
+     Root cause: Fallback decide() only checked state=="Catastrophic Failure",
+     missing the pressure > 12 and flow > 5 numeric checks.
+     Fix: Python fallback now mirrors Rust logic exactly.
+
+================================================================================
+  TROUBLESHOOTING
 ================================================================================
 
   "python is not recognized"
-    → Make sure Python 3 is installed and added to PATH.
-      Download: https://www.python.org/downloads/
+    Install Python 3.8+: https://www.python.org/downloads/
+    Tick "Add Python to PATH" during installation.
 
-  "Missing sample_log.jsonl"
-    → Run generator.py first, OR just run interceptor.py — it auto-generates it.
+  "ModuleNotFoundError: No module named 'fastapi'"
+    Run: pip install fastapi==0.115.5 uvicorn==0.32.1
 
-  "No output/decisions.jsonl found yet" (dashboard message)
-    → Run interceptor.py first to produce the output file, then relaunch.
+  "Address already in use" / port 8000 busy
+    Use a different port:
+      python -m uvicorn app:app --host 0.0.0.0 --port 8001 --reload
+    Open: http://localhost:8001
 
-  Rust binary not found
-    → The pipeline still works using the Python fallback. Build the Rust binary
-      only if you want the faster native decision engine.
+  Dashboard shows "No data yet"
+    Run interceptor.py first, or click Run Pipeline in the dashboard.
+
+  Live terminal shows "Interceptor error:" (no detail)
+    Fixed in current version. If it reappears, restart the server:
+      Ctrl+C in server terminal, then run uvicorn command again.
+
+  Rust binary not found (shown in console)
+    Normal — Python fallback runs automatically with identical results.
+
+  "OMPython not found" / OpenModelica not available
+    Normal — Python math fallback runs automatically.
+
+================================================================================
+  RESTART SERVER
+================================================================================
+
+    cd d:\PROJECTS\Project-1--VoltGuard---Physics-Aware-ICS-SCADA-Intrusion-Detection-System\web\backend
+    python -m uvicorn app:app --host 0.0.0.0 --port 8000 --reload
 
 ================================================================================

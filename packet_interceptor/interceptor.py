@@ -75,7 +75,7 @@ def main():
             decision = decide(sim)
             record = {**cmd, **sim, **decision}
             o.write(json.dumps(record) + "\n")
-            status = "🔴 DROP " if decision["action"] == "DROP" else "🟢 ALLOW"
+            status = "[DROP]" if decision["action"] == "DROP" else "[ALLOW]"
             print(f"{status} | value={cmd['value']:5.1f} | pressure={sim['pressure_bar']:.3f} bar"
                   f" | flow={sim['flow_rate']:.3f} | state={sim['state']}")
 
